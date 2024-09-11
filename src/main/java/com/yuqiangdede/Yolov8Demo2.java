@@ -3,6 +3,7 @@ package com.yuqiangdede;
 import ai.onnxruntime.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
@@ -24,7 +25,7 @@ public class Yolov8Demo2 {
     public static final String DLL_PATH = "E:\\JavaCode\\java-yolo-onnx\\src\\main\\resources\\opencv_java490.dll";
     public static final String SO_PATH = "";
     public static final String ONNX_PATH = "E:\\JavaCode\\java-yolo-onnx\\src\\main\\resources\\yolov8n.onnx";
-    public static final String PIC_PATH = "E:\\JavaCode\\java-yolo-onnx\\src\\main\\resources\\860.jpg";
+    public static final String PIC_PATH = "E:\\JavaCode\\java-yolo-onnx\\src\\main\\resources\\123.jpg";
 
     public static final float CONF_THRESHOLD = 0.2f;
 
@@ -65,7 +66,7 @@ public class Yolov8Demo2 {
         // draw
         BufferedImage image = ImageIO.read(new File(PIC_PATH));
         BufferedImage out = drawImage(image, bs);
-        displayImage(out," ");
+        displayImage(out, " ");
 
     }
 
@@ -107,8 +108,9 @@ public class Yolov8Demo2 {
             List<ArrayList<Float>> boxes = new ArrayList<>();
             // Since the image used for prediction is resized, the coordinates returned are relative to the resized image.
             // Therefore, the final coordinates need to be restored to the original scale.
-            float scaleW = (float) src.width() / yolomodel.netWidth;
-            float scaleH = (float) src.height() / yolomodel.netHeight;
+            // Since the previous test is done according to the square with the long side, MAX is used here
+            float scaleW = (float) Math.max(src.width(), src.height()) / yolomodel.netWidth;
+            float scaleH = (float) Math.max(src.width(), src.height()) / yolomodel.netHeight;
             // Apply confidence threshold, convert xywh to xyxy, and restore the resized coordinates.
             for (Float[] d : transpositionData) {
                 // Apply confidence threshold
@@ -142,9 +144,16 @@ public class Yolov8Demo2 {
      * @throws OrtException Throws when an error occurs in the ORT runtime.
      */
     static OnnxTensor transferTensor(Mat src) throws OrtException {
+        //Calculate the maximum side length, construct a new square image, and paste the original image into the upper left corner of the new square image
+        int maxLength = Math.max(src.cols(), src.rows());
+        Mat maxImage = Mat.zeros(new Size(maxLength, maxLength), CvType.CV_8UC3);
+        Rect roi = new Rect(0, 0, src.cols(), src.rows());
+        src.copyTo(new Mat(maxImage, roi));
+
+
         Mat dst = new Mat();
         // Resize the image to the model's dimensions
-        Imgproc.resize(src, dst, new Size(yolomodel.netWidth, yolomodel.netHeight));
+        Imgproc.resize(maxImage, dst, new Size(yolomodel.netWidth, yolomodel.netHeight));
         // Convert the image color space from BGR to RGB, as the model was trained with RGB images
         Imgproc.cvtColor(dst, dst, Imgproc.COLOR_BGR2RGB);
         // Convert the image data type to 32-bit floating point and normalize each pixel value to be between 0 and 1
@@ -270,9 +279,9 @@ public class Yolov8Demo2 {
      * Draws a series of bounding boxes on the given BufferedImage and labels each box with a class and confidence score.
      *
      * @param image The BufferedImage on which the bounding boxes will be drawn.
-     * @param boxs A list of ArrayLists containing the position and class confidence information for each bounding box.
-     *             Each ArrayList contains five Float elements representing the top-left x coordinate, y coordinate,
-     *             bottom-right x coordinate, y coordinate, and class confidence score of the bounding box.
+     * @param boxs  A list of ArrayLists containing the position and class confidence information for each bounding box.
+     *              Each ArrayList contains five Float elements representing the top-left x coordinate, y coordinate,
+     *              bottom-right x coordinate, y coordinate, and class confidence score of the bounding box.
      * @return The BufferedImage with the drawn bounding boxes and labels.
      */
     public static BufferedImage drawImage(BufferedImage image, List<ArrayList<Float>> boxs) {
@@ -281,10 +290,10 @@ public class Yolov8Demo2 {
         graphics.setFont(new Font("Arial", Font.BOLD, 24));
         for (ArrayList<Float> b : boxs) {
             graphics.setColor(Color.RED);
-            graphics.drawRect( b.get(0).intValue(), b.get(1).intValue(), (int) (b.get(2) - b.get(0)), (int) (b.get(3) - b.get(1)));
+            graphics.drawRect(b.get(0).intValue(), b.get(1).intValue(), (int) (b.get(2) - b.get(0)), (int) (b.get(3) - b.get(1)));
 
             graphics.setColor(Color.BLUE);
-            graphics.drawString(b.get(5).intValue() +  " : " + b.get(4),  b.get(0).intValue() + 5,  b.get(3).intValue() - 5);
+            graphics.drawString(b.get(5).intValue() + " : " + b.get(4), b.get(0).intValue() + 5, b.get(3).intValue() - 5);
         }
         graphics.dispose();
         return image;

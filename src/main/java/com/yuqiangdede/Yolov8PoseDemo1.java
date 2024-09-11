@@ -3,6 +3,7 @@ package com.yuqiangdede;
 import ai.onnxruntime.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.Rect;
 import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
@@ -121,8 +122,9 @@ public class Yolov8PoseDemo1 {
             List<ArrayList<Float>> boxes = new ArrayList<>();
             // Since the image used for prediction is resized, the coordinates returned are relative to the resized image.
             // Therefore, the final coordinates need to be restored to the original scale.
-            float scaleW = (float) src.width() / yolomodel.netWidth;
-            float scaleH = (float) src.height() / yolomodel.netHeight;
+            // Since the previous test is done according to the square with the long side, MAX is used here
+            float scaleW = (float) Math.max(src.width(), src.height()) / yolomodel.netWidth;
+            float scaleH = (float) Math.max(src.width(), src.height()) / yolomodel.netHeight;
             // Apply confidence threshold, convert xywh to xyxy, and restore the resized coordinates.
             for (Float[] d : transpositionData) {
                 // Apply confidence threshold
@@ -190,9 +192,15 @@ public class Yolov8PoseDemo1 {
      * @throws OrtException Throws when an error occurs in the ORT runtime.
      */
     static OnnxTensor transferTensor(Mat src) throws OrtException {
+        //Calculate the maximum side length, construct a new square image, and paste the original image into the upper left corner of the new square image
+        int maxLength = Math.max(src.cols(), src.rows());
+        Mat maxImage = Mat.zeros(new Size(maxLength, maxLength), CvType.CV_8UC3);
+        Rect roi = new Rect(0, 0, src.cols(), src.rows());
+        src.copyTo(new Mat(maxImage, roi));
+
         Mat dst = new Mat();
         // Resize the image to the model's dimensions
-        Imgproc.resize(src, dst, new Size(yolomodel.netWidth, yolomodel.netHeight));
+        Imgproc.resize(maxImage, dst, new Size(yolomodel.netWidth, yolomodel.netHeight));
         // Convert the image color space from BGR to RGB, as the model was trained with RGB images
         Imgproc.cvtColor(dst, dst, Imgproc.COLOR_BGR2RGB);
         // Convert the image data type to 32-bit floating point and normalize each pixel value to be between 0 and 1
